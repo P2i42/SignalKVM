@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SignalKVM</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="header">
+        <div>
+          <p class="eyebrow">DDC/CI · Windows</p>
+          <h1>SignalKVM</h1>
+        </div>
+        <label class="switch" title="开启或暂停自动切换">
+          <input id="enabled" type="checkbox">
+          <span></span>
+        </label>
+      </header>
+
+      <section class="status-card">
+        <div class="status-mark" id="statusMark"></div>
+        <div>
+          <p class="label">状态</p>
+          <p id="statusText">正在启动</p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <div>
+            <p class="label">显示器</p>
+            <h2 id="monitorName">正在识别显示器</h2>
+          </div>
+          <button id="refreshMonitors" class="quiet-button" type="button">扫描显示器</button>
+        </div>
+        <label class="monitor-select-row" for="monitorSelect">
+          <span>目标显示器</span>
+          <select id="monitorSelect"></select>
+        </label>
+        <p class="hint monitor-meta" id="monitorMeta">尚未扫描显示器。</p>
+        <div class="section-head input-head">
+          <div>
+            <p class="label">输入源</p>
+            <h2>本机与另一台电脑</h2>
+          </div>
+          <button id="scanMonitor" class="quiet-button" type="button">扫描输入源</button>
+        </div>
+        <p class="setting-label">本机连接的端口</p>
+        <div class="segmented" id="inputSource" role="radiogroup" aria-label="显示器输入">
+          <button type="button" data-value="0F0F">DisplayPort 1</button>
+          <button type="button" data-value="1111">HDMI 1</button>
+          <button type="button" data-value="1212">HDMI 2</button>
+        </div>
+        <p class="setting-label alternate-label">另一台电脑端口</p>
+        <div class="segmented" id="alternateInput" role="radiogroup" aria-label="另一台电脑端口">
+          <button type="button" data-value="0F0F">DisplayPort 1</button>
+          <button type="button" data-value="1111">HDMI 1</button>
+          <button type="button" data-value="1212">HDMI 2</button>
+        </div>
+        <p class="hint" id="readResult">尚未读取显示器输入。</p>
+        <button id="readMonitor" class="quiet-button read-input-button" type="button">读取当前输入</button>
+        <button id="switchNow" class="switch-now-button" type="button">
+          一键切换本机 / 另一台电脑
+        </button>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <div>
+            <p class="label">行为</p>
+            <h2>键鼠活动检测</h2>
+          </div>
+        </div>
+        <p class="setting-label">切换灵敏度</p>
+        <div class="segmented sensitivity" id="sensitivity" role="radiogroup" aria-label="切换灵敏度">
+          <button type="button" data-value="high">高</button>
+          <button type="button" data-value="normal">标准</button>
+          <button type="button" data-value="stable">稳健</button>
+        </div>
+        <p class="hint" id="sensitivityHint">高灵敏度反应更快，稳健模式会减少误切换。</p>
+        <div class="field-row">
+          <label for="idleBeforeSwitchSec">
+            空闲多久后允许切换
+            <span>0 秒表示任意键鼠活动都可触发</span>
+          </label>
+          <div class="input-with-unit">
+            <input id="idleBeforeSwitchSec" type="number" min="0" max="600" step="5">
+            <span>秒</span>
+          </div>
+        </div>
+        <label class="check-row">
+          <input id="hotkeyEnabled" type="checkbox">
+          <span>启用一键切换全局快捷键</span>
+        </label>
+        <div class="field-row">
+          <label for="hotkeyAccelerator">
+            快捷键
+            <span>点击“重新绑定”后直接按下组合键</span>
+          </label>
+          <div class="hotkey-capture">
+            <input id="hotkeyAccelerator" class="wide-input" type="text" readonly>
+            <button id="bindHotkey" class="quiet-button" type="button">重新绑定</button>
+          </div>
+        </div>
+        <p class="hint" id="hotkeyResult">快捷键会在保存后立即生效。</p>
+        <label class="check-row">
+          <input id="launchAtLogin" type="checkbox">
+          <span>开机后自动启动并驻留后台</span>
+        </label>
+      </section>
+
+      <details class="advanced">
+        <summary>高级时序与设备选择</summary>
+        <div class="field-stack">
+          <div class="advanced-grid">
+            <label for="pollMs">
+              检测间隔（毫秒）
+              <input id="pollMs" type="number" min="250" max="2000" step="50">
+            </label>
+            <label for="cooldownMs">
+              切换冷却（毫秒）
+              <input id="cooldownMs" type="number" min="500" max="10000" step="100">
+            </label>
+          </div>
+          <label for="windowsHardwareId">
+            兼容 Hardware ID
+            <input id="windowsHardwareId" type="text" spellcheck="false">
+          </label>
+          <label for="macDisplaySelector" class="mac-only">
+            macOS 显示器 UUID
+            <input id="macDisplaySelector" type="text" spellcheck="false" placeholder="自动识别 S2721DGF">
+          </label>
+        </div>
+      </details>
+
+      <footer class="actions">
+        <button id="openData" class="quiet-button" type="button">配置目录</button>
+        <button id="save" class="primary-button" type="button">保存设置</button>
+      </footer>
+    </main>
+    <script src="renderer.js"></script>
+  </body>
+</html>

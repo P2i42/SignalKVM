@@ -1,0 +1,13 @@
+node_modules/
+.electron-zips/
+.packager-tmp/
+dist/
+__pycache__/
+*.pyc
+native/windows/bin/ddc-helper-next.exe
+*.log
+.DS_Store
+Thumbs.db
+.env
+.env.*
+!.env.example
