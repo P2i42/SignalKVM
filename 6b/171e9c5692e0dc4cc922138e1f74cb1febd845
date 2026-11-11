@@ -1,0 +1,78 @@
+.gitignore
+  s_094a6050d6c98a::t_96e971de79277c 1-13
+README.md
+  s_3d4b7b095f2ad5::t_04346503408f39 1-41
+package.json
+  s_9a12fbb19d42b5::t_f5f7ceb385cbed 1-17
+scripts/package.js
+  s_3d4b7b095f2ad5::t_a762af49c4c968 1-133
+src/main.js
+  s_3d4b7b095f2ad5::t_f8d1965de800e9 1-1075
+src/preload.js
+  s_c78434a0e50a09::t_6c2081ea1deb7d 1-16
+src/renderer/index.html
+  s_c78434a0e50a09::t_108cc79ad9bd20 1-145
+src/renderer/renderer.js
+  s_3d4b7b095f2ad5::t_2db82ffa56e54c 1-535
+src/renderer/styles.css
+  s_c78434a0e50a09::t_79f7ded07d5059 1-450
+.gitattributes
+  h_e2c9238f60536d 1-6
+LICENSE
+  h_e2c9238f60536d 1-21
+native/windows/DdcHelper.cs
+  h_e2c9238f60536d 1-1046
+package-lock.json
+  h_e2c9238f60536d 1-722
+scripts/verify-macos-zip.py
+  h_e2c9238f60536d 1-63
+scripts/zip-macos.py
+  h_e2c9238f60536d 1-93
+third_party/m1ddc/README.md
+  h_e2c9238f60536d 1-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5+huawei.3",
+  "base_commit_sha": "6b171e9c5692e0dc4cc922138e1f74cb1febd845",
+  "prompts": {},
+  "humans": {
+    "h_e2c9238f60536d": {
+      "author": "r00959226 <r00959226@users.noreply.github.com>"
+    }
+  },
+  "sessions": {
+    "s_094a6050d6c98a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1c359-0c4e-7390-af30-30b2acca0f40",
+        "model": "DeepSeek-V4.1-Flash-1017"
+      },
+      "human_author": "r00959226 <r00959226@users.noreply.github.com>"
+    },
+    "s_3d4b7b095f2ad5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1c84a-855f-7922-b3a5-bc3234717b0c",
+        "model": "DeepSeek-V4.1-Flash-1017"
+      },
+      "human_author": "r00959226 <r00959226@users.noreply.github.com>"
+    },
+    "s_9a12fbb19d42b5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1c9d2-5ea6-7881-aa40-fc217be0b580",
+        "model": "DeepSeek-V4.1-Flash-1017"
+      },
+      "human_author": "r00959226 <r00959226@users.noreply.github.com>"
+    },
+    "s_c78434a0e50a09": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1c978-935a-7132-b5fb-81545ad0168a",
+        "model": "DeepSeek-V4.1-Flash-1017"
+      },
+      "human_author": "r00959226 <r00959226@users.noreply.github.com>"
+    }
+  }
+}
