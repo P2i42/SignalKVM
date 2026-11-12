@@ -197,6 +197,7 @@ internal static class Program
                 uint outputTechnology = outputTechnologies.ContainsKey(instanceName)
                     ? outputTechnologies[instanceName]
                     : 0;
+                MonitorDisplayInfo displayInfo = Ddc.ResolveDisplayInfo(instanceName);
 
                 var monitorJson = new StringBuilder();
                 monitorJson.Append(
@@ -209,6 +210,16 @@ internal static class Program
                     "\",\"active\":" + (active ? "true" : "false") +
                     ",\"videoOutputTechnology\":" + outputTechnology +
                     ",\"connection\":\"" + JsonEscape(ConnectionLabel(outputTechnology)) + "\"");
+                if (displayInfo != null)
+                {
+                    monitorJson.Append(
+                        ",\"deviceName\":\"" + JsonEscape(displayInfo.DeviceName) +
+                        "\",\"primary\":" + (displayInfo.Primary ? "true" : "false") +
+                        ",\"displayBounds\":{\"x\":" + displayInfo.X +
+                        ",\"y\":" + displayInfo.Y +
+                        ",\"width\":" + displayInfo.Width +
+                        ",\"height\":" + displayInfo.Height + "}");
+                }
 
                 if (scanInputs)
                 {
@@ -386,6 +397,16 @@ internal sealed class MonitorScanState
     public bool CapabilitiesAvailable;
     public string InputScanSource;
     public List<uint> InputValues;
+}
+
+internal sealed class MonitorDisplayInfo
+{
+    public string DeviceName;
+    public bool Primary;
+    public int X;
+    public int Y;
+    public int Width;
+    public int Height;
 }
 
 internal static class Ddc
@@ -945,6 +966,45 @@ internal static class Ddc
         return physicalMonitorDescription.IndexOf(
             monitorSelector,
             StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    public static MonitorDisplayInfo ResolveDisplayInfo(string monitorSelector)
+    {
+        if (string.IsNullOrWhiteSpace(monitorSelector))
+        {
+            return null;
+        }
+
+        MonitorDisplayInfo result = null;
+        EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero,
+            delegate(IntPtr hMonitor, IntPtr hdcMonitor, ref Rect lprcMonitor, IntPtr dwData)
+            {
+                if (!MatchesTarget(hMonitor, string.Empty, monitorSelector))
+                {
+                    return true;
+                }
+
+                MonitorInfoEx monitorInfo = new MonitorInfoEx();
+                monitorInfo.cbSize = Marshal.SizeOf(typeof(MonitorInfoEx));
+                if (!GetMonitorInfo(hMonitor, ref monitorInfo))
+                {
+                    return true;
+                }
+
+                result = new MonitorDisplayInfo
+                {
+                    DeviceName = monitorInfo.szDevice,
+                    Primary = (monitorInfo.dwFlags & 1) != 0,
+                    X = monitorInfo.rcMonitor.Left,
+                    Y = monitorInfo.rcMonitor.Top,
+                    Width = monitorInfo.rcMonitor.Right - monitorInfo.rcMonitor.Left,
+                    Height = monitorInfo.rcMonitor.Bottom - monitorInfo.rcMonitor.Top
+                };
+                return false;
+            },
+            IntPtr.Zero);
+
+        return result;
     }
 
     private static string HardwareIdFromSelector(string monitorSelector)

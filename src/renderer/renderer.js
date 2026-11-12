@@ -14,6 +14,10 @@ const fields = {
   alternateInput: document.querySelector('#alternateInput'),
   sensitivity: document.querySelector('#sensitivity'),
   sensitivityHint: document.querySelector('#sensitivityHint'),
+  pointerGateEnabled: document.querySelector('#pointerGateEnabled'),
+  triggerDisplay: document.querySelector('#triggerDisplay'),
+  pointerGateHint: document.querySelector('#pointerGateHint'),
+  pointerDwellSec: document.querySelector('#pointerDwellSec'),
   pollMs: document.querySelector('#pollMs'),
   cooldownMs: document.querySelector('#cooldownMs'),
   idleBeforeSwitchSec: document.querySelector('#idleBeforeSwitchSec'),
@@ -164,6 +168,54 @@ function monitorOptionLabel(monitor) {
   return `${monitor.name || monitor.hardwareId || '未知显示器'} · ${identity}`;
 }
 
+function displayOptionLabel(display) {
+  const bounds = display.bounds || {};
+  return `从左到右第 ${display.leftToRightIndex} 块 · ${display.label} · ${bounds.width}×${bounds.height}`;
+}
+
+function renderPointerGateSettings(config) {
+  const enabled = Boolean(config.pointerGateEnabled);
+  const displays = Array.isArray(config.displays) ? config.displays : [];
+  const selectedLabel = String(config.triggerDisplayLabel || '').toLowerCase();
+  const selectedId = String(config.triggerDisplayId || '');
+  const selected = displays.find((display) => display.id === selectedId)
+    || displays.find((display) => selectedLabel && display.label.toLowerCase() === selectedLabel)
+    || null;
+
+  fields.pointerGateEnabled.checked = enabled;
+  fields.pointerDwellSec.value = Math.max(1, Math.round((config.pointerDwellMs || 3000) / 1000));
+  fields.pointerDwellSec.disabled = !enabled;
+  fields.idleBeforeSwitchSec.disabled = enabled;
+  fields.triggerDisplay.disabled = !enabled || displays.length === 0;
+  fields.triggerDisplay.replaceChildren();
+
+  if (displays.length === 0) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = '未检测到桌面显示器';
+    fields.triggerDisplay.appendChild(option);
+  } else {
+    for (const display of displays) {
+      const option = document.createElement('option');
+      option.value = display.id;
+      option.textContent = displayOptionLabel(display);
+      option.selected = selected?.id === display.id;
+      fields.triggerDisplay.appendChild(option);
+    }
+  }
+
+  fields.triggerDisplay.disabled = !enabled || displays.length === 0;
+  if (!enabled) {
+    fields.pointerGateHint.textContent = '开启后，只有光标进入指定显示器区域才允许自动切回。';
+    return;
+  }
+  if (!selected) {
+    fields.pointerGateHint.textContent = '请选择承载键鼠意图的显示器；未选择时不会自动切换。';
+    return;
+  }
+  fields.pointerGateHint.textContent = `光标离开 ${selected.label} 时，普通键鼠活动不会触发自动切换。`;
+}
+
 function renderConfig(config) {
   currentConfig = config;
   const profile = activeProfile(config);
@@ -173,6 +225,7 @@ function renderConfig(config) {
   fields.pollMs.value = config.pollMs;
   fields.cooldownMs.value = config.cooldownMs;
   fields.idleBeforeSwitchSec.value = Math.round((config.idleBeforeSwitchMs || 0) / 1000);
+  renderPointerGateSettings(config);
   fields.launchAtLogin.checked = config.launchAtLogin;
   fields.hotkeyEnabled.checked = config.hotkeyEnabled;
   fields.hotkeyAccelerator.value = config.hotkeyAccelerator || '';
@@ -234,6 +287,9 @@ function renderConfig(config) {
 
 function readForm() {
   const profile = activeProfile();
+  const selectedDisplay = currentConfig.displays?.find(
+    (display) => display.id === fields.triggerDisplay.value
+  );
   return {
     enabled: fields.enabled.checked,
     activeMonitorId: currentConfig.activeMonitorId,
@@ -244,6 +300,11 @@ function readForm() {
     pollMs: Number(fields.pollMs.value),
     cooldownMs: Number(fields.cooldownMs.value),
     idleBeforeSwitchMs: Math.max(0, Number(fields.idleBeforeSwitchSec.value) || 0) * 1000,
+    pointerGateEnabled: fields.pointerGateEnabled.checked,
+    pointerDwellMs: Math.max(1, Number(fields.pointerDwellSec.value) || 3) * 1000,
+    triggerDisplayId: fields.triggerDisplay.value,
+    triggerDisplayLabel: selectedDisplay?.label || '',
+    triggerDisplayBounds: selectedDisplay?.bounds || null,
     launchAtLogin: fields.launchAtLogin.checked,
     hotkeyEnabled: fields.hotkeyEnabled.checked,
     hotkeyAccelerator: fields.hotkeyAccelerator.value,
@@ -400,6 +461,14 @@ fields.enabled.addEventListener('change', () => {
   if (currentConfig) {
     currentConfig.enabled = fields.enabled.checked;
   }
+});
+
+fields.pointerGateEnabled.addEventListener('change', () => {
+  if (!currentConfig) {
+    return;
+  }
+  currentConfig.pointerGateEnabled = fields.pointerGateEnabled.checked;
+  renderPointerGateSettings(currentConfig);
 });
 
 fields.bindHotkey.addEventListener('click', () => {

@@ -1,7 +1,7 @@
 {
   "name": "signalkvm",
   "productName": "SignalKVM",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Local keyboard and mouse activity monitor for Dell S2721DGF input switching",
   "main": "src/main.js",
   "license": "MIT",

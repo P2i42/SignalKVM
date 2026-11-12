@@ -80,10 +80,29 @@
           <button type="button" data-value="stable">稳健</button>
         </div>
         <p class="hint" id="sensitivityHint">高灵敏度反应更快，稳健模式会减少误切换。</p>
+        <label class="check-row">
+          <input id="pointerGateEnabled" type="checkbox">
+          <span>仅当光标进入指定显示器并停留后切换</span>
+        </label>
+        <label class="monitor-select-row pointer-trigger-select" for="triggerDisplay">
+          <span>光标必须位于</span>
+          <select id="triggerDisplay"></select>
+        </label>
+        <p class="hint" id="pointerGateHint">开启后会忽略其他显示器上的普通键鼠活动。</p>
+        <div class="field-row">
+          <label for="pointerDwellSec">
+            光标停留时间
+            <span>移动或拖动窗口后，停在该显示器上达到时间才切换</span>
+          </label>
+          <div class="input-with-unit">
+            <input id="pointerDwellSec" type="number" min="1" max="60" step="1">
+            <span>秒</span>
+          </div>
+        </div>
         <div class="field-row">
           <label for="idleBeforeSwitchSec">
             空闲多久后允许切换
-            <span>0 秒表示任意键鼠活动都可触发</span>
+            <span>仅在光标门控关闭时生效；0 秒表示任意键鼠活动都可触发</span>
           </label>
           <div class="input-with-unit">
             <input id="idleBeforeSwitchSec" type="number" min="0" max="600" step="5">

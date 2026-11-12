@@ -6,6 +6,7 @@ const {
   nativeImage,
   ipcMain,
   powerMonitor,
+  screen,
   globalShortcut,
   shell
 } = require('electron');
@@ -44,7 +45,7 @@ function createDefaultProfile() {
 
 function createDefaultConfig() {
   return {
-    configVersion: 3,
+    configVersion: 4,
     enabled: true,
     activeMonitorId: 'DEL41D9',
     monitorProfiles: {
@@ -57,6 +58,11 @@ function createDefaultConfig() {
     pollMs: 500,
     cooldownMs: 1800,
     idleBeforeSwitchMs: 0,
+    pointerGateEnabled: false,
+    pointerDwellMs: 3000,
+    triggerDisplayId: '',
+    triggerDisplayLabel: '',
+    triggerDisplayBounds: null,
     launchAtLogin: false,
     hotkeyEnabled: true,
     hotkeyAccelerator: 'Control+Alt+PageDown',
@@ -93,6 +99,9 @@ let window = null;
 let timer = null;
 let lastIdleSeconds = 0;
 let idlePeakSeconds = 0;
+let pointerCandidateStartedAt = 0;
+let pointerWasInside = false;
+let lastPointerPoint = null;
 let lastSwitchAt = 0;
 let config = null;
 let isQuitting = false;
@@ -112,6 +121,25 @@ function configPath() {
 
 function cloneData(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function normalizeDisplayBounds(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const x = Number(raw.x);
+  const y = Number(raw.y);
+  const width = Number(raw.width);
+  const height = Number(raw.height);
+  if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) {
+    return null;
+  }
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    width: Math.round(width),
+    height: Math.round(height)
+  };
 }
 
 function normalizeInputHex(value) {
@@ -212,6 +240,8 @@ function normalizeProfile(raw, fallback = {}) {
     manufacturer: String(source.manufacturer || '').trim(),
     serial: String(source.serial || '').trim(),
     connection: String(source.connection || '').trim(),
+    deviceName: String(source.deviceName || '').trim(),
+    displayBounds: normalizeDisplayBounds(source.displayBounds),
     active: source.active !== false,
     ddcOk: source.ddcOk !== false,
     inputSource,
@@ -262,7 +292,7 @@ function loadConfig() {
     }
 
     merged.monitors = Array.isArray(saved.monitors) ? saved.monitors : [];
-    merged.configVersion = 3;
+    merged.configVersion = 4;
     return merged;
   } catch {
     return defaults;
@@ -272,6 +302,87 @@ function loadConfig() {
 function saveConfig() {
   fs.mkdirSync(path.dirname(configPath()), { recursive: true });
   fs.writeFileSync(configPath(), JSON.stringify(config, null, 2));
+}
+
+function getDisplayOptions() {
+  return screen.getAllDisplays()
+    .slice()
+    .sort((left, right) => (
+      left.bounds.x - right.bounds.x
+      || left.bounds.y - right.bounds.y
+      || left.bounds.width - right.bounds.width
+    ))
+    .map((display, index) => ({
+      id: String(display.id),
+      label: display.label || `DISPLAY${index + 1}`,
+      leftToRightIndex: index + 1,
+      bounds: {
+        x: display.bounds.x,
+        y: display.bounds.y,
+        width: display.bounds.width,
+        height: display.bounds.height
+      },
+      workArea: {
+        x: display.workArea.x,
+        y: display.workArea.y,
+        width: display.workArea.width,
+        height: display.workArea.height
+      },
+      scaleFactor: display.scaleFactor,
+      rotation: display.rotation
+    }));
+}
+
+function boundsEqual(left, right) {
+  const a = normalizeDisplayBounds(left);
+  const b = normalizeDisplayBounds(right);
+  return Boolean(
+    a
+    && b
+    && a.x === b.x
+    && a.y === b.y
+    && a.width === b.width
+    && a.height === b.height
+  );
+}
+
+function resolveTriggerDisplay() {
+  const displays = getDisplayOptions();
+  const savedId = String(config?.triggerDisplayId || '');
+  const savedLabel = String(config?.triggerDisplayLabel || '').toLowerCase();
+  const savedBounds = normalizeDisplayBounds(config?.triggerDisplayBounds);
+
+  return displays.find((display) => display.id === savedId)
+    || displays.find((display) => savedLabel && display.label.toLowerCase() === savedLabel)
+    || displays.find((display) => savedBounds && boundsEqual(display.bounds, savedBounds))
+    || null;
+}
+
+function autoSelectTriggerDisplayFromProfile() {
+  if (config.triggerDisplayId) {
+    return false;
+  }
+
+  const { profile } = getActiveMonitorProfile();
+  const displays = getDisplayOptions();
+  const deviceName = String(profile.deviceName || '').toLowerCase();
+  const profileName = String(profile.name || '').toLowerCase();
+  const profileBounds = normalizeDisplayBounds(profile.displayBounds);
+  const match = displays.find((display) => (
+    deviceName && display.label.toLowerCase() === deviceName
+  )) || displays.find((display) => (
+    profileName && display.label.toLowerCase() === profileName
+  )) || displays.find((display) => (
+    profileBounds && boundsEqual(display.bounds, profileBounds)
+  ));
+
+  if (!match) {
+    return false;
+  }
+  config.triggerDisplayId = match.id;
+  config.triggerDisplayLabel = match.label;
+  config.triggerDisplayBounds = match.bounds;
+  return true;
 }
 
 function resourcePath(...parts) {
@@ -391,6 +502,7 @@ function mergeMonitorDiscovery(monitors) {
 
   config.monitors = monitors;
   syncActiveMonitorToConfig();
+  autoSelectTriggerDisplayFromProfile();
   saveConfig();
   return getPublicConfig();
 }
@@ -629,6 +741,72 @@ function registerSwitchHotkey() {
   }
 }
 
+function resetPointerGate() {
+  pointerCandidateStartedAt = 0;
+  pointerWasInside = false;
+  lastPointerPoint = null;
+}
+
+function pointInsideBounds(point, bounds) {
+  return Boolean(
+    point
+    && bounds
+    && point.x >= bounds.x
+    && point.y >= bounds.y
+    && point.x < bounds.x + bounds.width
+    && point.y < bounds.y + bounds.height
+  );
+}
+
+function pointerMoved(point) {
+  return !lastPointerPoint
+    || point.x !== lastPointerPoint.x
+    || point.y !== lastPointerPoint.y;
+}
+
+function pollPointerGate({ idle, activityResumed }) {
+  const now = Date.now();
+  const display = resolveTriggerDisplay();
+  if (!display) {
+    resetPointerGate();
+    return false;
+  }
+
+  const point = screen.getCursorScreenPoint();
+  const inside = pointInsideBounds(point, display.bounds);
+  const moved = pointerMoved(point);
+  const recentlyActive = idle <= 1;
+
+  if (!inside) {
+    pointerCandidateStartedAt = 0;
+    pointerWasInside = false;
+    lastPointerPoint = point;
+    return false;
+  }
+
+  if (moved && recentlyActive) {
+    pointerCandidateStartedAt = now;
+  } else if (
+    !pointerCandidateStartedAt
+    && recentlyActive
+    && (activityResumed || !pointerWasInside)
+  ) {
+    pointerCandidateStartedAt = now;
+  }
+
+  pointerWasInside = true;
+  lastPointerPoint = point;
+
+  if (
+    pointerCandidateStartedAt
+    && now - pointerCandidateStartedAt >= config.pointerDwellMs
+  ) {
+    pointerCandidateStartedAt = 0;
+    return true;
+  }
+  return false;
+}
+
 async function switchOnActivity(force = false) {
   if ((!config.enabled && !force) || switching) {
     return { ok: false, skipped: true };
@@ -661,6 +839,7 @@ async function switchOnActivity(force = false) {
 
 function pollIdle() {
   if (!config.enabled) {
+    resetPointerGate();
     return;
   }
 
@@ -669,14 +848,28 @@ function pollIdle() {
     idlePeakSeconds = Math.max(idlePeakSeconds, idle);
   }
 
+  let activityResumed = false;
+  let idleBeforeActivityMs = 0;
   if (idle < lastIdleSeconds) {
-    const idleBeforeActivityMs = idlePeakSeconds * 1000;
-    if (idleBeforeActivityMs >= config.idleBeforeSwitchMs) {
-      switchOnActivity();
-    }
+    activityResumed = true;
+    idleBeforeActivityMs = idlePeakSeconds * 1000;
     idlePeakSeconds = idle;
   }
   lastIdleSeconds = idle;
+
+  if (config.pointerGateEnabled) {
+    if (pollPointerGate({
+      idle,
+      activityResumed
+    })) {
+      switchOnActivity();
+    }
+    return;
+  }
+
+  if (activityResumed && idleBeforeActivityMs >= config.idleBeforeSwitchMs) {
+    switchOnActivity();
+  }
 }
 
 function restartPolling() {
@@ -687,6 +880,7 @@ function restartPolling() {
   if (config.enabled) {
     lastIdleSeconds = powerMonitor.getSystemIdleTime();
     idlePeakSeconds = lastIdleSeconds;
+    resetPointerGate();
     timer = setInterval(pollIdle, config.pollMs);
   }
 }
@@ -760,6 +954,12 @@ function updateTrayMenu() {
   const hotkeyLabel = config.hotkeyEnabled && config.hotkeyAccelerator
     ? `一键切换本机 / 另一台电脑  (${config.hotkeyAccelerator})`
     : '一键切换本机 / 另一台电脑';
+  const triggerDisplay = resolveTriggerDisplay();
+  const pointerGateLabel = config.pointerGateEnabled
+    ? triggerDisplay
+      ? `光标在 ${triggerDisplay.label} 停留 ${Math.round(config.pointerDwellMs / 1000)} 秒后切换`
+      : '光标门控已开启，但触发显示器未连接'
+    : '光标门控：关闭';
 
   const menu = Menu.buildFromTemplate([
     { label: 'SignalKVM', enabled: false },
@@ -783,10 +983,11 @@ function updateTrayMenu() {
     },
     {
       label: config.idleBeforeSwitchMs > 0
-        ? `空闲 ${Math.round(config.idleBeforeSwitchMs / 1000)} 秒后允许自动切换`
-        : '任意键鼠活动均可触发自动切换',
+        ? `空闲门槛：${Math.round(config.idleBeforeSwitchMs / 1000)} 秒`
+        : '空闲门槛：关闭',
       enabled: false
     },
+    { label: pointerGateLabel, enabled: false },
     { type: 'separator' },
     { label: config.lastStatus || '就绪', enabled: false },
     { label: '设置...', click: showWindow },
@@ -851,6 +1052,13 @@ function getPublicConfig() {
     pollMs: config.pollMs,
     cooldownMs: config.cooldownMs,
     idleBeforeSwitchMs: config.idleBeforeSwitchMs,
+    pointerGateEnabled: config.pointerGateEnabled,
+    pointerDwellMs: config.pointerDwellMs,
+    triggerDisplayId: config.triggerDisplayId,
+    triggerDisplayLabel: config.triggerDisplayLabel,
+    triggerDisplayBounds: config.triggerDisplayBounds,
+    triggerDisplayConnected: Boolean(resolveTriggerDisplay()),
+    displays: getDisplayOptions(),
     launchAtLogin: config.launchAtLogin,
     hotkeyEnabled: config.hotkeyEnabled,
     hotkeyAccelerator: config.hotkeyAccelerator,
@@ -924,6 +1132,10 @@ function registerIpc() {
     profile.alternateInput = alternateInput;
     profile.inputs = normalizeInputSources(profile.inputs, inputSource);
 
+    const displays = getDisplayOptions();
+    const selectedDisplayId = String(next.triggerDisplayId || '');
+    const selectedDisplay = displays.find((display) => display.id === selectedDisplayId) || null;
+
     config = {
       ...config,
       enabled: Boolean(next.enabled),
@@ -934,6 +1146,16 @@ function registerIpc() {
         600000,
         Math.max(0, Math.round((Number(next.idleBeforeSwitchMs) || 0) / 1000) * 1000)
       ),
+      pointerGateEnabled: Boolean(next.pointerGateEnabled),
+      pointerDwellMs: Math.min(
+        60000,
+        Math.max(500, Math.round((Number(next.pointerDwellMs) || 3000) / 500) * 500)
+      ),
+      triggerDisplayId: selectedDisplay?.id || String(next.triggerDisplayId || '').trim(),
+      triggerDisplayLabel: selectedDisplay?.label || String(next.triggerDisplayLabel || '').trim(),
+      triggerDisplayBounds: selectedDisplay?.bounds
+        || normalizeDisplayBounds(next.triggerDisplayBounds)
+        || config.triggerDisplayBounds,
       launchAtLogin: Boolean(next.launchAtLogin),
       hotkeyEnabled: Boolean(next.hotkeyEnabled),
       hotkeyAccelerator: normalizeAccelerator(next.hotkeyAccelerator) || config.hotkeyAccelerator,
@@ -945,9 +1167,12 @@ function registerIpc() {
     const hotkeyReady = registerSwitchHotkey();
     restartPolling();
     updateTrayMenu();
+    const pointerGateReady = !config.pointerGateEnabled || Boolean(resolveTriggerDisplay());
     setStatus(
-      hotkeyReady ? '设置已保存' : `设置已保存，但一键切换快捷键不可用：${hotkeyError}`,
-      hotkeyReady ? 'ok' : 'error'
+      hotkeyReady && pointerGateReady
+        ? '设置已保存'
+        : `设置已保存，但${!hotkeyReady ? `一键切换快捷键不可用：${hotkeyError}` : '触发显示器未连接'}`,
+      hotkeyReady && pointerGateReady ? 'ok' : 'error'
     );
     return getPublicConfig();
   });
@@ -965,6 +1190,7 @@ function registerIpc() {
     }
     config.activeMonitorId = monitorId;
     syncActiveMonitorToConfig();
+    autoSelectTriggerDisplayFromProfile();
     saveConfig();
     updateTrayMenu();
     sendConfig();
