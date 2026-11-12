@@ -27,6 +27,14 @@ async function main() {
   const buildOut = path.join(buildTemp, 'output');
   fs.mkdirSync(buildTemp, { recursive: true });
 
+  const configuredElectronZipDir = process.env.SIGNKVM_ELECTRON_ZIP_DIR;
+  const electronZipDir = configuredElectronZipDir
+    ? path.resolve(root, configuredElectronZipDir)
+    : path.join(root, '.electron-zips');
+  if (configuredElectronZipDir && !fs.existsSync(electronZipDir)) {
+    throw new Error(`Configured Electron ZIP directory does not exist: ${electronZipDir}`);
+  }
+
   let paths;
   try {
     paths = await packager({
@@ -44,7 +52,7 @@ async function main() {
       extendInfo: platform === 'darwin' ? { LSUIElement: true } : undefined,
       icon: platform === 'win32' ? path.join(root, 'assets', 'tray.ico') : undefined,
       tmpdir: buildTemp,
-      electronZipDir: path.join(root, '.electron-zips'),
+      ...(fs.existsSync(electronZipDir) ? { electronZipDir } : {}),
       extraResource: platform === 'win32' ? [winHelper] : [macHelper],
       ignore: [
         /^\/dist($|\/)/,
