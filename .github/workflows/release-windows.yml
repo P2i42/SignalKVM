@@ -1,0 +1,60 @@
+name: Release Windows
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: GitHub release tag
+        required: true
+        default: v0.2.0
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Package Windows app
+        run: npm run package:win
+
+      - name: Create Windows ZIP
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $zipName = "SignalKVM-win32-x64-$version.zip"
+          Compress-Archive `
+            -LiteralPath "dist\SignalKVM-win32-x64" `
+            -DestinationPath $zipName `
+            -CompressionLevel Optimal
+          "SIGNALKVM_ZIP=$zipName" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SignalKVM-win32-x64
+          path: ${{ env.SIGNALKVM_ZIP }}
+          if-no-files-found: error
+
+      - name: Attach ZIP to release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: |
+          gh release upload $env:RELEASE_TAG $env:SIGNALKVM_ZIP --clobber
