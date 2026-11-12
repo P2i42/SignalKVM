@@ -1,0 +1,61 @@
+native/windows/DdcHelper.cs
+  s_094a6050d6c98a::t_9f1ae24117e18e 200,213-222,402-411,971-1007
+  s_094a6050d6c98a::t_dafcaab4470037 1008-1009
+src/renderer/index.html
+  s_094a6050d6c98a::t_96efa591793e35 105
+  s_094a6050d6c98a::t_60861c59a80551 83-101
+README.md
+  s_094a6050d6c98a::t_4b3525f72eb52b 12,24-25
+package.json
+  s_094a6050d6c98a::t_4b3525f72eb52b 4
+src/renderer/styles.css
+  s_094a6050d6c98a::t_be27d937a432e2 216-225
+src/renderer/renderer.js
+  s_094a6050d6c98a::t_a595f47ca7162d 171-187,189-218,228
+  s_094a6050d6c98a::t_f6e2f1eb80c55e 290-292,306-307
+  s_094a6050d6c98a::t_c158654bb698d3 303-305
+  s_094a6050d6c98a::t_ceca3faf628907 188
+  s_094a6050d6c98a::t_a2f9b645631cbf 466-473
+  s_094a6050d6c98a::t_969cab45bb4a72 17-20
+src/main.js
+  s_094a6050d6c98a::t_35ce0f68fbf416 962,986-987
+  s_094a6050d6c98a::t_520980d9aa9b1c 307-368,370-372,375-387
+  s_094a6050d6c98a::t_8fb8f47bbfd9ab 369,373-374
+  s_094a6050d6c98a::t_f0fc30ecfb30d0 842,852,855,859-862,864-869,871-872,883
+  s_094a6050d6c98a::t_8436a61c416450 851,854,870
+  s_094a6050d6c98a::t_d117b6a2880d6c 9,48,61-65,102-104,126-144,243-244
+  s_094a6050d6c98a::t_ddd2fd5092f24b 744-766,768-786,788-809
+  s_094a6050d6c98a::t_b1a7b8bb89d0be 767,787,863
+  s_094a6050d6c98a::t_120cff61860443 505
+  s_094a6050d6c98a::t_cbb4020fe905b7 295
+  s_094a6050d6c98a::t_e580f91e68b03c 957-961,990
+  s_094a6050d6c98a::t_6d0f5668b07801 1055-1061
+  s_094a6050d6c98a::t_db52432ef47460 1135-1138,1149-1158,1170,1172-1175
+  s_094a6050d6c98a::t_bf33223073833c 1193
+package-lock.json
+  s_6175d74c2e1e41::t_8c27bcea0c7218 3,9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5+huawei.3",
+  "base_commit_sha": "09860e7bb69d76238692b0062ca2770c8844e42b",
+  "prompts": {},
+  "sessions": {
+    "s_094a6050d6c98a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1c359-0c4e-7390-af30-30b2acca0f40",
+        "model": "DeepSeek-V4.1-Flash-1017"
+      },
+      "human_author": "r00959226 <r00959226@users.noreply.github.com>"
+    },
+    "s_6175d74c2e1e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1cd72-eb09-7733-bf94-c8fdd0ac9a4d",
+        "model": "DeepSeek-V4.1-Flash-1017"
+      },
+      "human_author": "r00959226 <r00959226@users.noreply.github.com>"
+    }
+  }
+}
