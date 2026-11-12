@@ -1,0 +1,19 @@
+scripts/package.js
+  s_094a6050d6c98a::t_0abe4c4a6e8b32 30-37,55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5+huawei.3",
+  "base_commit_sha": "a806208ab82ed846339920a3346abced0b7faf35",
+  "prompts": {},
+  "sessions": {
+    "s_094a6050d6c98a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1c359-0c4e-7390-af30-30b2acca0f40",
+        "model": "DeepSeek-V4.1-Flash-1017"
+      },
+      "human_author": "r00959226 <r00959226@users.noreply.github.com>"
+    }
+  }
+}
