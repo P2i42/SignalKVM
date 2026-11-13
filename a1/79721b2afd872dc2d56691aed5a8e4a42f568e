@@ -1,0 +1,55 @@
+src/main.js
+  s_094a6050d6c98a::t_0897b5ffb0ef51 15,105-106
+  s_094a6050d6c98a::t_4a270765fd97ce 1169,1265,1267
+  s_094a6050d6c98a::t_52571faf152068 1065,1068,1071-1073,1102
+  s_094a6050d6c98a::t_25a1c8ef0a80be 1415
+  s_094a6050d6c98a::t_f7851a3e6469f8 817-818,821-826,828-830,834-866,868-887,889-911
+  s_094a6050d6c98a::t_f6a852273b26bf 108,111
+  s_094a6050d6c98a::t_76169d7b7c991b 947
+  s_094a6050d6c98a::t_950ed4b5014bf6 992
+  s_094a6050d6c98a::t_f620df5a06f09f 785
+  s_094a6050d6c98a::t_cafe56242808aa 302
+  s_094a6050d6c98a::t_69abeac30ab0ec 805-816,819-820,827,831-833,867,888,912-914,927
+  s_094a6050d6c98a::t_fa9e8ece50df09 48,62-63,107,109-110
+  s_094a6050d6c98a::t_1b677aae96e97e 970,989
+README.md
+  s_094a6050d6c98a::t_271a3d98463d5a 24-25
+package.json
+  s_094a6050d6c98a::t_271a3d98463d5a 4
+src/renderer/index.html
+  s_094a6050d6c98a::t_934b2fd1650c9c 94-95,98,102-105
+native/windows/DdcHelper.cs
+  s_094a6050d6c98a::t_f75b35291a009c 4,28-33,140-158
+  s_094a6050d6c98a::t_d115faabf8f4e0 175,1059-1112
+  s_094a6050d6c98a::t_ade4ff8734abb7 34-39,159-174
+  s_094a6050d6c98a::t_c3403969a7a097 462-475,639-661
+  s_094a6050d6c98a::t_87a4e0842e1912 176
+  s_094a6050d6c98a::t_60322c3244c19f 662
+src/renderer/renderer.js
+  s_094a6050d6c98a::t_02fe6a46df1da9 187,189-190,212,219
+  s_094a6050d6c98a::t_b9dfbce9a9866f 21
+  s_094a6050d6c98a::t_99c4052fe5a33f 307-308
+package-lock.json
+  h_e2c9238f60536d 3,9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5+huawei.3",
+  "base_commit_sha": "a179721b2afd872dc2d56691aed5a8e4a42f568e",
+  "prompts": {},
+  "humans": {
+    "h_e2c9238f60536d": {
+      "author": "r00959226 <r00959226@users.noreply.github.com>"
+    }
+  },
+  "sessions": {
+    "s_094a6050d6c98a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1c359-0c4e-7390-af30-30b2acca0f40",
+        "model": "DeepSeek-V4.1-Flash-1017"
+      },
+      "human_author": "r00959226 <r00959226@users.noreply.github.com>"
+    }
+  }
+}
