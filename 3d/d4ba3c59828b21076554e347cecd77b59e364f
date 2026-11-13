@@ -1,0 +1,37 @@
+package.json
+  s_094a6050d6c98a::t_4accb03e498644 4
+README.md
+  s_094a6050d6c98a::t_3d21e9c46920ce 26
+src/main.js
+  s_094a6050d6c98a::t_8aec8bd77536d2 641-642,654-655
+  s_094a6050d6c98a::t_7b609c6335c611 796,815-818
+  s_094a6050d6c98a::t_f5a2a13501c6c7 611-614,619-622
+  s_094a6050d6c98a::t_3aef83619fda57 862
+  s_094a6050d6c98a::t_984371d92c4ee9 947
+  s_094a6050d6c98a::t_975d607d828492 767
+  s_094a6050d6c98a::t_a1270a1a929f18 946,948-955
+  s_094a6050d6c98a::t_6892237030f030 105-107
+package-lock.json
+  h_e2c9238f60536d 3,9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5+huawei.3",
+  "base_commit_sha": "3dd4ba3c59828b21076554e347cecd77b59e364f",
+  "prompts": {},
+  "humans": {
+    "h_e2c9238f60536d": {
+      "author": "r00959226 <r00959226@users.noreply.github.com>"
+    }
+  },
+  "sessions": {
+    "s_094a6050d6c98a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1c359-0c4e-7390-af30-30b2acca0f40",
+        "model": "DeepSeek-V4.1-Flash-1017"
+      },
+      "human_author": "r00959226 <r00959226@users.noreply.github.com>"
+    }
+  }
+}
