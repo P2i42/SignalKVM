@@ -12,7 +12,7 @@ const {
 } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
-const { execFile } = require('node:child_process');
+const { execFile, spawn } = require('node:child_process');
 
 const LEGACY_INPUTS = {
   DP: { label: 'DisplayPort 1', value: 0x0f0f, mac: 15 },
@@ -45,7 +45,7 @@ function createDefaultProfile() {
 
 function createDefaultConfig() {
   return {
-    configVersion: 4,
+    configVersion: 5,
     enabled: true,
     activeMonitorId: 'DEL41D9',
     monitorProfiles: {
@@ -59,7 +59,8 @@ function createDefaultConfig() {
     cooldownMs: 1800,
     idleBeforeSwitchMs: 0,
     pointerGateEnabled: false,
-    pointerDwellMs: 3000,
+    pointerDwellMs: 800,
+    windowGateEnabled: true,
     triggerDisplayId: '',
     triggerDisplayLabel: '',
     triggerDisplayBounds: null,
@@ -101,7 +102,13 @@ let lastIdleSeconds = 0;
 let idlePeakSeconds = 0;
 let pointerCandidateStartedAt = 0;
 let pointerWasInside = false;
-let lastPointerPoint = null;
+let foregroundWatcher = null;
+let foregroundWatcherBuffer = '';
+let foregroundStateReady = false;
+let lastForegroundHandle = '';
+let lastForegroundMonitor = '';
+let lastForegroundMinimized = false;
+let lastForegroundVisible = false;
 let lastSwitchAt = 0;
 let config = null;
 let isQuitting = false;
@@ -292,7 +299,7 @@ function loadConfig() {
     }
 
     merged.monitors = Array.isArray(saved.monitors) ? saved.monitors : [];
-    merged.configVersion = 4;
+    merged.configVersion = 5;
     return merged;
   } catch {
     return defaults;
@@ -744,7 +751,6 @@ function registerSwitchHotkey() {
 function resetPointerGate() {
   pointerCandidateStartedAt = 0;
   pointerWasInside = false;
-  lastPointerPoint = null;
 }
 
 function pointInsideBounds(point, bounds) {
@@ -758,12 +764,6 @@ function pointInsideBounds(point, bounds) {
   );
 }
 
-function pointerMoved(point) {
-  return !lastPointerPoint
-    || point.x !== lastPointerPoint.x
-    || point.y !== lastPointerPoint.y;
-}
-
 function pollPointerGate({ idle, activityResumed }) {
   const now = Date.now();
   const display = resolveTriggerDisplay();
@@ -774,19 +774,15 @@ function pollPointerGate({ idle, activityResumed }) {
 
   const point = screen.getCursorScreenPoint();
   const inside = pointInsideBounds(point, display.bounds);
-  const moved = pointerMoved(point);
   const recentlyActive = idle <= 1;
 
   if (!inside) {
     pointerCandidateStartedAt = 0;
     pointerWasInside = false;
-    lastPointerPoint = point;
     return false;
   }
 
-  if (moved && recentlyActive) {
-    pointerCandidateStartedAt = now;
-  } else if (
+  if (
     !pointerCandidateStartedAt
     && recentlyActive
     && (activityResumed || !pointerWasInside)
@@ -795,7 +791,6 @@ function pollPointerGate({ idle, activityResumed }) {
   }
 
   pointerWasInside = true;
-  lastPointerPoint = point;
 
   if (
     pointerCandidateStartedAt
@@ -807,7 +802,116 @@ function pollPointerGate({ idle, activityResumed }) {
   return false;
 }
 
-async function switchOnActivity(force = false) {
+function normalizeDeviceName(value) {
+  return String(value || '').replace(/\//g, '\\').toUpperCase();
+}
+
+function resetForegroundGate() {
+  foregroundStateReady = false;
+  lastForegroundHandle = '';
+  lastForegroundMonitor = '';
+  lastForegroundMinimized = false;
+  lastForegroundVisible = false;
+}
+
+function stopForegroundWatcher() {
+  if (!foregroundWatcher) {
+    return;
+  }
+  foregroundWatcher.removeAllListeners();
+  foregroundWatcher.kill();
+  foregroundWatcher = null;
+  foregroundWatcherBuffer = '';
+  resetForegroundGate();
+}
+
+function handleForegroundInfo(info) {
+  if (!info?.ok || !info.available) {
+    resetForegroundGate();
+    return;
+  }
+
+  const targetDeviceName = normalizeDeviceName(getActiveMonitorProfile().profile.deviceName);
+  if (!targetDeviceName) {
+    return;
+  }
+
+  const monitor = normalizeDeviceName(info.monitorDeviceName);
+  const handle = String(info.handle || '');
+  const isOwnWindow = String(info.processName || '').toLowerCase() === 'signalkvm';
+  const shouldSwitch = foregroundStateReady
+    && !isOwnWindow
+    && monitor === targetDeviceName
+    && (
+      handle !== lastForegroundHandle
+      || monitor !== lastForegroundMonitor
+      || (lastForegroundMinimized && !info.minimized)
+      || (!lastForegroundVisible && info.visible)
+    );
+
+  lastForegroundHandle = handle;
+  lastForegroundMonitor = monitor;
+  lastForegroundMinimized = Boolean(info.minimized);
+  lastForegroundVisible = Boolean(info.visible);
+  foregroundStateReady = true;
+
+  if (shouldSwitch) {
+    switchOnActivity(false, true);
+  }
+}
+
+function startForegroundWatcher() {
+  if (foregroundWatcher) {
+    return;
+  }
+
+  foregroundWatcherBuffer = '';
+  resetForegroundGate();
+  foregroundWatcher = spawn(helperPath(), ['foreground-watch'], {
+    windowsHide: true,
+    stdio: ['ignore', 'pipe', 'ignore']
+  });
+
+  foregroundWatcher.stdout.setEncoding('utf8');
+  foregroundWatcher.stdout.on('data', (chunk) => {
+    foregroundWatcherBuffer += chunk;
+    let newlineIndex = foregroundWatcherBuffer.indexOf('\n');
+    while (newlineIndex >= 0) {
+      const line = foregroundWatcherBuffer.slice(0, newlineIndex).trim();
+      foregroundWatcherBuffer = foregroundWatcherBuffer.slice(newlineIndex + 1);
+      if (line) {
+        try {
+          handleForegroundInfo(JSON.parse(line));
+        } catch {
+          // Ignore malformed helper output and keep the watcher alive.
+        }
+      }
+      newlineIndex = foregroundWatcherBuffer.indexOf('\n');
+    }
+  });
+  foregroundWatcher.on('exit', () => {
+    foregroundWatcher = null;
+    foregroundWatcherBuffer = '';
+    resetForegroundGate();
+  });
+  foregroundWatcher.on('error', () => {
+    stopForegroundWatcher();
+  });
+}
+
+function restartForegroundWatcher() {
+  stopForegroundWatcher();
+  if (
+    process.platform === 'win32'
+    && config.enabled
+    && config.pointerGateEnabled
+    && config.windowGateEnabled
+  ) {
+    startForegroundWatcher();
+  }
+}
+
+async function switchOnActivity(force = false, skipRead = false) {
   if ((!config.enabled && !force) || switching) {
     return { ok: false, skipped: true };
   }
@@ -820,7 +924,7 @@ async function switchOnActivity(force = false) {
   switching = true;
   try {
     const { profile } = getActiveMonitorProfile();
-    const current = await readCurrentInput().catch(() => null);
+    const current = skipRead ? null : await readCurrentInput().catch(() => null);
     if (current === targetValue()) {
       return { ok: true, changed: false, current };
     }
@@ -840,6 +944,7 @@ async function switchOnActivity(force = false) {
 function pollIdle() {
   if (!config.enabled) {
     resetPointerGate();
+    resetForegroundGate();
     return;
   }
 
@@ -862,7 +967,7 @@ function pollIdle() {
       idle,
       activityResumed
     })) {
-      switchOnActivity();
+      switchOnActivity(false, true);
     }
     return;
   }
@@ -881,8 +986,10 @@ function restartPolling() {
     lastIdleSeconds = powerMonitor.getSystemIdleTime();
     idlePeakSeconds = lastIdleSeconds;
     resetPointerGate();
+    resetForegroundGate();
     timer = setInterval(pollIdle, config.pollMs);
   }
+  restartForegroundWatcher();
 }
 
 function trayImage() {
@@ -955,11 +1062,15 @@ function updateTrayMenu() {
     ? `一键切换本机 / 另一台电脑  (${config.hotkeyAccelerator})`
     : '一键切换本机 / 另一台电脑';
   const triggerDisplay = resolveTriggerDisplay();
+  const pointerDwellSeconds = (config.pointerDwellMs / 1000).toFixed(1).replace(/\.0$/, '');
   const pointerGateLabel = config.pointerGateEnabled
     ? triggerDisplay
-      ? `光标在 ${triggerDisplay.label} 停留 ${Math.round(config.pointerDwellMs / 1000)} 秒后切换`
+      ? `光标在 ${triggerDisplay.label} 活动 ${pointerDwellSeconds} 秒后切换`
       : '光标门控已开启，但触发显示器未连接'
     : '光标门控：关闭';
+  const windowGateLabel = config.pointerGateEnabled && config.windowGateEnabled
+    ? '窗口进入目标显示器时也会切换'
+    : '窗口位置检测：关闭';
 
   const menu = Menu.buildFromTemplate([
     { label: 'SignalKVM', enabled: false },
@@ -988,6 +1099,7 @@ function updateTrayMenu() {
       enabled: false
     },
     { label: pointerGateLabel, enabled: false },
+    { label: windowGateLabel, enabled: false },
     { type: 'separator' },
     { label: config.lastStatus || '就绪', enabled: false },
     { label: '设置...', click: showWindow },
@@ -1054,6 +1166,7 @@ function getPublicConfig() {
     idleBeforeSwitchMs: config.idleBeforeSwitchMs,
     pointerGateEnabled: config.pointerGateEnabled,
     pointerDwellMs: config.pointerDwellMs,
+    windowGateEnabled: config.windowGateEnabled,
     triggerDisplayId: config.triggerDisplayId,
     triggerDisplayLabel: config.triggerDisplayLabel,
     triggerDisplayBounds: config.triggerDisplayBounds,
@@ -1149,8 +1262,9 @@ function registerIpc() {
       pointerGateEnabled: Boolean(next.pointerGateEnabled),
       pointerDwellMs: Math.min(
         60000,
-        Math.max(500, Math.round((Number(next.pointerDwellMs) || 3000) / 500) * 500)
+        Math.max(300, Math.round((Number(next.pointerDwellMs) || 800) / 100) * 100)
       ),
+      windowGateEnabled: Boolean(next.windowGateEnabled),
       triggerDisplayId: selectedDisplay?.id || String(next.triggerDisplayId || '').trim(),
       triggerDisplayLabel: selectedDisplay?.label || String(next.triggerDisplayLabel || '').trim(),
       triggerDisplayBounds: selectedDisplay?.bounds
@@ -1298,4 +1412,5 @@ app.on('activate', () => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  stopForegroundWatcher();
 });

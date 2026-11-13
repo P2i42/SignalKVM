@@ -91,14 +91,18 @@
         <p class="hint" id="pointerGateHint">开启后会忽略其他显示器上的普通键鼠活动。</p>
         <div class="field-row">
           <label for="pointerDwellSec">
-            光标停留时间
-            <span>移动或拖动窗口后，停在该显示器上达到时间才切换</span>
+            光标在目标显示器内活动多久后切换
+            <span>不要求鼠标静止；只要移动范围仍在这块显示器内就会累计时间</span>
           </label>
           <div class="input-with-unit">
-            <input id="pointerDwellSec" type="number" min="1" max="60" step="1">
+            <input id="pointerDwellSec" type="number" min="0.3" max="60" step="0.1">
             <span>秒</span>
           </div>
         </div>
+        <label class="check-row">
+          <input id="windowGateEnabled" type="checkbox">
+          <span>窗口新开、恢复或移动到目标显示器时也切换</span>
+        </label>
         <div class="field-row">
           <label for="idleBeforeSwitchSec">
             空闲多久后允许切换

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.Management;
 using System.Runtime.InteropServices;
@@ -21,6 +22,18 @@ internal static class Program
             if (string.Equals(args[0], "discover", StringComparison.OrdinalIgnoreCase))
             {
                 Console.WriteLine(DiscoverMonitors(ContainsOption(args, "--scan-inputs")));
+                return 0;
+            }
+
+            if (string.Equals(args[0], "foreground", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine(DescribeForegroundWindow());
+                return 0;
+            }
+
+            if (string.Equals(args[0], "foreground-watch", StringComparison.OrdinalIgnoreCase))
+            {
+                WatchForegroundWindow();
                 return 0;
             }
 
@@ -122,6 +135,43 @@ internal static class Program
             }
         }
         return null;
+    }
+
+    private static string DescribeForegroundWindow()
+    {
+        ForegroundWindowInfo info = Ddc.GetForegroundWindowInfo();
+        if (info == null)
+        {
+            return "{\"ok\":true,\"available\":false}";
+        }
+
+        return "{\"ok\":true,\"available\":true" +
+            ",\"handle\":\"" + info.Handle.ToInt64().ToString(CultureInfo.InvariantCulture) + "\"" +
+            ",\"title\":\"" + JsonEscape(info.Title) + "\"" +
+            ",\"processName\":\"" + JsonEscape(info.ProcessName) + "\"" +
+            ",\"monitorDeviceName\":\"" + JsonEscape(info.MonitorDeviceName) + "\"" +
+            ",\"visible\":" + (info.Visible ? "true" : "false") +
+            ",\"minimized\":" + (info.Minimized ? "true" : "false") +
+            ",\"bounds\":{\"x\":" + info.X +
+            ",\"y\":" + info.Y +
+            ",\"width\":" + info.Width +
+            ",\"height\":" + info.Height + "}}";
+    }
+
+    private static void WatchForegroundWindow()
+    {
+        string previous = null;
+        while (true)
+        {
+            string current = DescribeForegroundWindow();
+            if (!string.Equals(current, previous, StringComparison.Ordinal))
+            {
+                Console.WriteLine(current);
+                Console.Out.Flush();
+                previous = current;
+            }
+            System.Threading.Thread.Sleep(150);
+        }
     }
 
     private static bool ContainsOption(string[] args, string name)
@@ -409,6 +459,20 @@ internal sealed class MonitorDisplayInfo
     public int Height;
 }
 
+internal sealed class ForegroundWindowInfo
+{
+    public IntPtr Handle;
+    public string Title;
+    public string ProcessName;
+    public string MonitorDeviceName;
+    public bool Visible;
+    public bool Minimized;
+    public int X;
+    public int Y;
+    public int Width;
+    public int Height;
+}
+
 internal static class Ddc
 {
     private delegate bool MonitorEnumDelegate(
@@ -571,6 +635,30 @@ internal static class Ddc
         IntPtr lprcClip,
         MonitorEnumDelegate lpfnEnum,
         IntPtr dwData);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool GetWindowRect(IntPtr hWnd, out Rect lpRect);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowTextLength(IntPtr hWnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int maxCount);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool GetMonitorInfo(
@@ -966,6 +1054,60 @@ internal static class Ddc
         return physicalMonitorDescription.IndexOf(
             monitorSelector,
             StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    public static ForegroundWindowInfo GetForegroundWindowInfo()
+    {
+        IntPtr handle = GetForegroundWindow();
+        if (handle == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        Rect rect;
+        if (!GetWindowRect(handle, out rect))
+        {
+            return null;
+        }
+
+        StringBuilder title = new StringBuilder(Math.Max(1, GetWindowTextLength(handle) + 1));
+        GetWindowText(handle, title, title.Capacity);
+
+        uint processId;
+        GetWindowThreadProcessId(handle, out processId);
+        string processName = string.Empty;
+        try
+        {
+            processName = processId == 0
+                ? string.Empty
+                : Process.GetProcessById((int)processId).ProcessName;
+        }
+        catch
+        {
+            processName = string.Empty;
+        }
+
+        MonitorInfoEx monitorInfo = new MonitorInfoEx();
+        monitorInfo.cbSize = Marshal.SizeOf(typeof(MonitorInfoEx));
+        IntPtr monitor = MonitorFromWindow(handle, 2);
+        if (monitor != IntPtr.Zero)
+        {
+            GetMonitorInfo(monitor, ref monitorInfo);
+        }
+
+        return new ForegroundWindowInfo
+        {
+            Handle = handle,
+            Title = title.ToString(),
+            ProcessName = processName,
+            MonitorDeviceName = monitorInfo.szDevice ?? string.Empty,
+            Visible = IsWindowVisible(handle),
+            Minimized = IsIconic(handle),
+            X = rect.Left,
+            Y = rect.Top,
+            Width = Math.Max(0, rect.Right - rect.Left),
+            Height = Math.Max(0, rect.Bottom - rect.Top)
+        };
     }
 
     public static MonitorDisplayInfo ResolveDisplayInfo(string monitorSelector)

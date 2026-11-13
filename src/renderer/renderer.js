@@ -18,6 +18,7 @@ const fields = {
   triggerDisplay: document.querySelector('#triggerDisplay'),
   pointerGateHint: document.querySelector('#pointerGateHint'),
   pointerDwellSec: document.querySelector('#pointerDwellSec'),
+  windowGateEnabled: document.querySelector('#windowGateEnabled'),
   pollMs: document.querySelector('#pollMs'),
   cooldownMs: document.querySelector('#cooldownMs'),
   idleBeforeSwitchSec: document.querySelector('#idleBeforeSwitchSec'),
@@ -183,8 +184,10 @@ function renderPointerGateSettings(config) {
     || null;
 
   fields.pointerGateEnabled.checked = enabled;
-  fields.pointerDwellSec.value = Math.max(1, Math.round((config.pointerDwellMs || 3000) / 1000));
+  fields.pointerDwellSec.value = Math.max(0.3, (config.pointerDwellMs || 800) / 1000).toFixed(1);
   fields.pointerDwellSec.disabled = !enabled;
+  fields.windowGateEnabled.checked = config.windowGateEnabled !== false;
+  fields.windowGateEnabled.disabled = !enabled;
   fields.idleBeforeSwitchSec.disabled = enabled;
   fields.triggerDisplay.disabled = !enabled || displays.length === 0;
   fields.triggerDisplay.replaceChildren();
@@ -206,14 +209,14 @@ function renderPointerGateSettings(config) {
 
   fields.triggerDisplay.disabled = !enabled || displays.length === 0;
   if (!enabled) {
-    fields.pointerGateHint.textContent = '开启后，只有光标进入指定显示器区域才允许自动切回。';
+    fields.pointerGateHint.textContent = '开启后，只有光标在指定显示器内活动，或窗口进入该显示器时才自动切回。';
     return;
   }
   if (!selected) {
     fields.pointerGateHint.textContent = '请选择承载键鼠意图的显示器；未选择时不会自动切换。';
     return;
   }
-  fields.pointerGateHint.textContent = `光标离开 ${selected.label} 时，普通键鼠活动不会触发自动切换。`;
+  fields.pointerGateHint.textContent = `光标在 ${selected.label} 内移动会累计时间；离开后普通键鼠活动不会触发自动切换。`;
 }
 
 function renderConfig(config) {
@@ -301,7 +304,8 @@ function readForm() {
     cooldownMs: Number(fields.cooldownMs.value),
     idleBeforeSwitchMs: Math.max(0, Number(fields.idleBeforeSwitchSec.value) || 0) * 1000,
     pointerGateEnabled: fields.pointerGateEnabled.checked,
-    pointerDwellMs: Math.max(1, Number(fields.pointerDwellSec.value) || 3) * 1000,
+    pointerDwellMs: Math.max(0.3, Number(fields.pointerDwellSec.value) || 0.8) * 1000,
+    windowGateEnabled: fields.windowGateEnabled.checked,
     triggerDisplayId: fields.triggerDisplay.value,
     triggerDisplayLabel: selectedDisplay?.label || '',
     triggerDisplayBounds: selectedDisplay?.bounds || null,
