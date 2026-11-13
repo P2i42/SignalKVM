@@ -102,6 +102,9 @@ let lastIdleSeconds = 0;
 let idlePeakSeconds = 0;
 let pointerCandidateStartedAt = 0;
 let pointerWasInside = false;
+let pointerTriggeredForEntry = false;
+let lastKnownInput = null;
+let lastKnownInputAt = 0;
 let foregroundWatcher = null;
 let foregroundWatcherBuffer = '';
 let foregroundStateReady = false;
@@ -605,12 +608,18 @@ async function readCurrentInput() {
     if (!parsed.ok) {
       throw new Error(parsed.error || 'DDC read failed');
     }
-    return canonicalInputValue(parsed.current, profile);
+    const current = canonicalInputValue(parsed.current, profile);
+    lastKnownInput = current;
+    lastKnownInputAt = Date.now();
+    return current;
   }
 
   await discoverMacDisplay();
   const raw = await runHelper(macDisplayArgs(['get', 'input']));
-  return Number.parseInt(raw, 10);
+  const current = Number.parseInt(raw, 10);
+  lastKnownInput = current;
+  lastKnownInputAt = Date.now();
+  return current;
 }
 
 async function setInput(source) {
@@ -629,6 +638,8 @@ async function setInput(source) {
       '--value',
       value.toString(16).padStart(4, '0')
     ]);
+    lastKnownInput = canonicalInputValue(value, profile);
+    lastKnownInputAt = Date.now();
     return;
   }
 
@@ -640,6 +651,8 @@ async function setInput(source) {
     throw new Error(`Unsupported macOS input source: ${source}`);
   }
   await runHelper(macDisplayArgs(['set', 'input', String(macValue)]));
+  lastKnownInput = value;
+  lastKnownInputAt = Date.now();
 }
 
 function targetValue() {
@@ -751,6 +764,7 @@ function registerSwitchHotkey() {
 function resetPointerGate() {
   pointerCandidateStartedAt = 0;
   pointerWasInside = false;
+  pointerTriggeredForEntry = false;
 }
 
 function pointInsideBounds(point, bounds) {
@@ -779,6 +793,7 @@ function pollPointerGate({ idle, activityResumed }) {
   if (!inside) {
     pointerCandidateStartedAt = 0;
     pointerWasInside = false;
+    pointerTriggeredForEntry = false;
     return false;
   }
 
@@ -797,7 +812,10 @@ function pollPointerGate({ idle, activityResumed }) {
     && now - pointerCandidateStartedAt >= config.pointerDwellMs
   ) {
     pointerCandidateStartedAt = 0;
-    return true;
+    if (!pointerTriggeredForEntry) {
+      pointerTriggeredForEntry = true;
+      return true;
+    }
   }
   return false;
 }
@@ -841,6 +859,7 @@ function handleForegroundInfo(info) {
   const isOwnWindow = String(info.processName || '').toLowerCase() === 'signalkvm';
   const shouldSwitch = foregroundStateReady
     && !isOwnWindow
+    && Date.now() - lastSwitchAt > 2000
     && monitor === targetDeviceName
     && (
       handle !== lastForegroundHandle
@@ -924,8 +943,16 @@ async function switchOnActivity(force = false, skipRead = false) {
   switching = true;
   try {
     const { profile } = getActiveMonitorProfile();
-    const current = skipRead ? null : await readCurrentInput().catch(() => null);
-    if (current === targetValue()) {
+    const target = targetValue();
+    const cacheFresh = lastKnownInput !== null && Date.now() - lastKnownInputAt < 3000;
+    if (skipRead && cacheFresh && lastKnownInput === target) {
+      return { ok: true, changed: false, current: target };
+    }
+
+    const current = skipRead && cacheFresh && lastKnownInput !== target
+      ? null
+      : await readCurrentInput().catch(() => null);
+    if (current === target) {
       return { ok: true, changed: false, current };
     }
 
